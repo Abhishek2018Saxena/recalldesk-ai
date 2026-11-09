@@ -19,8 +19,7 @@ export default function LoginPage() {
   const handleContinueDemo = () => {
     setError('');
     setDemoSession(true);
-    router.replace('/dashboard');
-    router.refresh();
+    window.location.assign('/dashboard');
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {

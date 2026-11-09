@@ -60,8 +60,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const handleLogout = async () => {
     if (isDemo) {
       clearDemoSession();
-      router.replace('/login');
-      router.refresh();
+      window.location.assign('/login');
       return;
     }
 
