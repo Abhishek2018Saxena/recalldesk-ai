@@ -1,26 +1,75 @@
 'use client';
 
-import { useState } from 'react';
-import { tickets, type Ticket } from '@/lib/mock-data';
+import { useEffect, useState } from 'react';
+
+type TicketRecord = {
+  id: string;
+  customer_id?: string | null;
+  customerId?: string | null;
+  subject: string;
+  category: string;
+  priority: string;
+  status: string;
+  assigned_to?: string | null;
+  assignedTo?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  summary?: string | null;
+};
 
 export default function DashboardTicketsPage() {
-  const [ticketList, setTicketList] = useState(tickets);
+  const [ticketList, setTicketList] = useState<TicketRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleCreateTicket = () => {
-    const newTicket: Ticket = {
+  useEffect(() => {
+    const loadTickets = async () => {
+      try {
+        const response = await fetch('/api/tickets');
+        const payload = (await response.json()) as TicketRecord[];
+        setTicketList(Array.isArray(payload) ? payload : []);
+      } catch (caughtError) {
+        const message = caughtError instanceof Error ? caughtError.message : 'Unable to load tickets';
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadTickets();
+  }, []);
+
+  const handleCreateTicket = async () => {
+    const newTicket = {
       id: `TCK-${Math.floor(Math.random() * 9000 + 1000)}`,
-      customerId: 'C-4401',
+      customer_id: 'C-4401',
       subject: 'Follow-up review for multi-factor reset',
       category: 'Access',
       priority: 'Medium',
       status: 'Open',
-      assignedTo: 'A. Singh',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      assigned_to: 'A. Singh',
       summary: 'Support created a fresh case after the customer reported a new account access problem during onboarding.',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
 
-    setTicketList((current) => [newTicket, ...current]);
+    try {
+      const response = await fetch('/api/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTicket),
+      });
+
+      if (!response.ok) {
+        throw new Error('Unable to create ticket');
+      }
+
+      const created = (await response.json()) as TicketRecord;
+      setTicketList((current) => [created, ...current]);
+    } catch (caughtError) {
+      const message = caughtError instanceof Error ? caughtError.message : 'Unable to create ticket';
+      setError(message);
+    }
   };
 
   return (
@@ -33,32 +82,38 @@ export default function DashboardTicketsPage() {
         <button type="button" onClick={handleCreateTicket} className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-medium text-slate-950">Create ticket</button>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/80">
-        <table className="min-w-full divide-y divide-slate-800 text-left text-sm">
-          <thead className="bg-slate-950/80 text-slate-300">
-            <tr>
-              <th className="px-4 py-3">ID</th>
-              <th className="px-4 py-3">Customer</th>
-              <th className="px-4 py-3">Category</th>
-              <th className="px-4 py-3">Priority</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Assigned</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800 text-slate-200">
-            {ticketList.map((ticket) => (
-              <tr key={ticket.id} className="hover:bg-slate-950/40">
-                <td className="px-4 py-3 font-medium text-white">{ticket.id}</td>
-                <td className="px-4 py-3">{ticket.customerId}</td>
-                <td className="px-4 py-3">{ticket.category}</td>
-                <td className="px-4 py-3"><span className="rounded-full bg-amber-500/10 px-2 py-1 text-xs text-amber-200">{ticket.priority}</span></td>
-                <td className="px-4 py-3"><span className="rounded-full bg-blue-500/10 px-2 py-1 text-xs text-blue-200">{ticket.status}</span></td>
-                <td className="px-4 py-3">{ticket.assignedTo}</td>
+      {loading ? (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 text-slate-300">Loading tickets…</div>
+      ) : error ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-rose-200">{error}</div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/80">
+          <table className="min-w-full divide-y divide-slate-800 text-left text-sm">
+            <thead className="bg-slate-950/80 text-slate-300">
+              <tr>
+                <th className="px-4 py-3">ID</th>
+                <th className="px-4 py-3">Customer</th>
+                <th className="px-4 py-3">Category</th>
+                <th className="px-4 py-3">Priority</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Assigned</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-slate-800 text-slate-200">
+              {ticketList.map((ticket) => (
+                <tr key={ticket.id} className="hover:bg-slate-950/40">
+                  <td className="px-4 py-3 font-medium text-white">{ticket.id}</td>
+                  <td className="px-4 py-3">{ticket.customerId ?? ticket.customer_id ?? '—'}</td>
+                  <td className="px-4 py-3">{ticket.category}</td>
+                  <td className="px-4 py-3"><span className="rounded-full bg-amber-500/10 px-2 py-1 text-xs text-amber-200">{ticket.priority}</span></td>
+                  <td className="px-4 py-3"><span className="rounded-full bg-blue-500/10 px-2 py-1 text-xs text-blue-200">{ticket.status}</span></td>
+                  <td className="px-4 py-3">{ticket.assignedTo ?? ticket.assigned_to ?? 'Unassigned'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

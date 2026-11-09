@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Sparkles } from 'lucide-react';
 import { useState } from 'react';
+import { supabase } from '@/lib/supabase/client';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -12,12 +13,13 @@ export default function SignupPage() {
   const [form, setForm] = useState({ fullName: 'Alicia Diaz', email: 'alicia@recalldesk.ai', company: 'Northstar Labs', role: 'Support Lead', password: 'demo-password', confirmPassword: 'demo-password' });
   const [accepted, setAccepted] = useState(true);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (field: keyof typeof form, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!form.fullName.trim() || !form.email.includes('@')) {
@@ -35,9 +37,45 @@ export default function SignupPage() {
       return;
     }
 
+    if (!supabase) {
+      setError('Supabase is not configured yet. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel to create an account.');
+      return;
+    }
+
+    setLoading(true);
     setError('');
-    document.cookie = 'recalldesk_session=demo-admin; path=/; max-age=86400';
-    router.push('/dashboard');
+
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: {
+          data: {
+            full_name: form.fullName,
+            company: form.company,
+            role: form.role,
+          },
+          emailRedirectTo: process.env.NEXT_PUBLIC_SUPABASE_AUTH_REDIRECT_URL || `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/auth/callback`,
+        },
+      });
+
+      if (signUpError) {
+        throw signUpError;
+      }
+
+      if (data.user && !data.session) {
+        setError('Account created. Check your email to confirm sign-in before continuing.');
+        return;
+      }
+
+      router.push('/dashboard');
+      router.refresh();
+    } catch (caughtError) {
+      const message = caughtError instanceof Error ? caughtError.message : 'Account creation failed.';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -104,7 +142,7 @@ export default function SignupPage() {
           {error ? <div className="md:col-span-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div> : null}
 
           <div className="md:col-span-2 flex flex-col gap-3 sm:flex-row">
-            <button type="submit" className="flex-1 rounded-xl bg-blue-500 px-4 py-3 text-sm font-medium text-white">Create account</button>
+            <button type="submit" disabled={loading} className="flex-1 rounded-xl bg-blue-500 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-70">{loading ? 'Creating account…' : 'Create account'}</button>
             <button type="button" onClick={() => router.push('/login')} className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm font-medium text-slate-200">Cancel</button>
           </div>
         </form>

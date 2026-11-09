@@ -2,11 +2,42 @@
 
 import { Search } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
-import { customers } from '@/lib/mock-data';
+import { useEffect, useMemo, useState } from 'react';
+
+type CustomerRecord = {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  tier?: string | null;
+  region?: string | null;
+  status?: string | null;
+  value?: string | null;
+  preference?: string | null;
+};
 
 export default function DashboardCustomersPage() {
   const [query, setQuery] = useState('');
+  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadCustomers = async () => {
+      try {
+        const response = await fetch('/api/customers');
+        const payload = (await response.json()) as CustomerRecord[];
+        setCustomers(Array.isArray(payload) ? payload : []);
+      } catch (caughtError) {
+        const message = caughtError instanceof Error ? caughtError.message : 'Unable to load customers';
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadCustomers();
+  }, []);
 
   const filteredCustomers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -15,10 +46,10 @@ export default function DashboardCustomersPage() {
     }
 
     return customers.filter((customer) => {
-      const searchable = [customer.name, customer.id, customer.email, customer.phone].join(' ').toLowerCase();
+      const searchable = [customer.name, customer.id, customer.email ?? '', customer.phone ?? ''].join(' ').toLowerCase();
       return searchable.includes(normalized);
     });
-  }, [query]);
+  }, [customers, query]);
 
   return (
     <div className="space-y-6">
@@ -38,7 +69,11 @@ export default function DashboardCustomersPage() {
         </label>
       </div>
 
-      {filteredCustomers.length === 0 ? (
+      {loading ? (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 text-slate-300">Loading customers…</div>
+      ) : error ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-rose-200">{error}</div>
+      ) : filteredCustomers.length === 0 ? (
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 text-slate-300">No customers found.</div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -58,16 +93,16 @@ export default function DashboardCustomersPage() {
               </div>
 
               <div className="mt-5 space-y-2 text-sm text-slate-300">
-                <div className="flex items-center justify-between"><span>Email</span><span className="text-slate-100">{customer.email}</span></div>
-                <div className="flex items-center justify-between"><span>Phone</span><span className="text-slate-100">{customer.phone}</span></div>
-                <div className="flex items-center justify-between"><span>Region</span><span className="text-slate-100">{customer.region}</span></div>
-                <div className="flex items-center justify-between"><span>Tier</span><span className="text-slate-100">{customer.tier}</span></div>
-                <div className="flex items-center justify-between"><span>Value</span><span className="text-slate-100">{customer.value}</span></div>
+                <div className="flex items-center justify-between"><span>Email</span><span className="text-slate-100">{customer.email ?? '—'}</span></div>
+                <div className="flex items-center justify-between"><span>Phone</span><span className="text-slate-100">{customer.phone ?? '—'}</span></div>
+                <div className="flex items-center justify-between"><span>Region</span><span className="text-slate-100">{customer.region ?? '—'}</span></div>
+                <div className="flex items-center justify-between"><span>Tier</span><span className="text-slate-100">{customer.tier ?? '—'}</span></div>
+                <div className="flex items-center justify-between"><span>Value</span><span className="text-slate-100">{customer.value ?? '—'}</span></div>
               </div>
 
               <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-sm text-slate-300">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Preference</div>
-                <p className="mt-2">{customer.preference}</p>
+                <p className="mt-2">{customer.preference ?? 'No preference recorded.'}</p>
               </div>
             </Link>
           ))}

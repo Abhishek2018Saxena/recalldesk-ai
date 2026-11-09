@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, ShieldCheck, Sparkles } from 'lucide-react';
 import { useState } from 'react';
+import { supabase } from '@/lib/supabase/client';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,7 +14,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
     setError('');
@@ -24,8 +25,25 @@ export default function LoginPage() {
       return;
     }
 
-    document.cookie = `recalldesk_session=demo-admin; path=/; max-age=86400`;
-    router.push('/dashboard');
+    if (!supabase) {
+      setError('Supabase is not configured yet. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel before signing in.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) {
+        throw signInError;
+      }
+      router.push('/dashboard');
+      router.refresh();
+    } catch (caughtError) {
+      const message = caughtError instanceof Error ? caughtError.message : 'Login failed.';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
