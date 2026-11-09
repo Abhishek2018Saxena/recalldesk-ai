@@ -1,18 +1,128 @@
 import { NextResponse } from 'next/server';
+import { customers, knowledgeBase, memoryItems } from '@/lib/mock-data';
 import { createConversationId, createMessage, getConversationStore, replaceConversationStore, type ConversationRecord } from '@/lib/conversation-store';
 
 function getMissingProviderMessage() {
-  return 'Missing AI provider configuration. Set OPENAI_API_KEY or both AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT in Vercel environment variables.';
+  return 'No paid AI provider is configured. The app is using the local demo engine based on the customer memory and knowledge base.';
 }
 
-async function callConfiguredBackend(message: string) {
+function buildLocalDemoAnswer(message: string, customerId?: string, conversation?: ConversationRecord) {
+  const normalized = message.toLowerCase();
+  const customer = customers.find((entry) => entry.id === customerId) ?? null;
+  const customerMemory = customerId ? memoryItems.filter((entry) => entry.customerId === customerId) : [];
+  const conversationHistory = conversation?.messages ?? [];
+
+  const relevantKnowledge = knowledgeBase.filter((article) => {
+    const haystack = `${article.title} ${article.summary} ${article.category}`.toLowerCase();
+    return (
+      /delay|shipment|eta|delivery|carrier|replacement/.test(normalized) && /delay|shipment|eta|delivery|carrier|replacement/.test(haystack)
+    ) || (
+      /refund|billing|invoice|payment|credit/.test(normalized) && /refund|billing|invoice|payment|credit/.test(haystack)
+    ) || (
+      /password|login|mfa|access|identity/.test(normalized) && /password|login|mfa|access|identity/.test(haystack)
+    );
+  }).slice(0, 2);
+
+  const relevantMemory = customerMemory.slice(0, 2).map((entry) => entry.summary);
+  const recentContext = conversationHistory.slice(-3).map((entry) => `${entry.author}: ${entry.text}`).join(' | ');
+
+  if (/delay|shipment|eta|delivery|carrier|replacement/.test(normalized)) {
+    const policy = relevantKnowledge.find((entry) => entry.category === 'Delivery') ?? knowledgeBase[0];
+    const memorySummary = relevantMemory[0] ?? 'The customer has prior delivery concerns and wants an update before the case closes.';
+    const answer = [
+      `Based on the delivery policy and prior customer context, I would review the carrier ETA and shipment status before making any final promise.`,
+      policy ? `The support policy states: ${policy.summary}` : 'The support policy requires confirming the carrier status and fulfillment timeline.',
+      `The customer record also notes: ${memorySummary}`,
+      customer ? `For ${customer.name}, I would keep the response grounded in the prior order details and follow-up preference.` : 'I would keep the response grounded in the customer’s previous issue history.',
+    ].join(' ');
+
+    return {
+      answer,
+      mode: 'demo-local',
+      confidence: 0.86,
+      memoryUsed: relevantMemory.length > 0,
+      knowledgeUsed: relevantKnowledge.length > 0,
+      escalationRecommended: /urgent|frustrated|cancel|escalate/.test(normalized),
+      sources: [
+        ...(relevantKnowledge.map((entry) => `Knowledge: ${entry.title}`)),
+        ...(relevantMemory.length ? [`Memory: ${relevantMemory[0]}`] : []),
+        ...(recentContext ? [`Conversation: ${recentContext}`] : []),
+      ],
+    };
+  }
+
+  if (/refund|billing|invoice|payment|credit/.test(normalized)) {
+    const policy = relevantKnowledge.find((entry) => entry.category === 'Billing') ?? knowledgeBase[2];
+    const answer = [
+      `I would review the billing exception policy and payment history before confirming a refund or credit.`,
+      policy ? `The support reference states: ${policy.summary}` : 'Refunds require payment verification and a review of the original transaction.',
+      customer ? `The current customer record for ${customer.name} should be checked before finalizing any credit promise.` : 'The customer record should be reviewed before finalizing any credit promise.',
+    ].join(' ');
+
+    return {
+      answer,
+      mode: 'demo-local',
+      confidence: 0.84,
+      memoryUsed: relevantMemory.length > 0,
+      knowledgeUsed: relevantKnowledge.length > 0,
+      escalationRecommended: false,
+      sources: [
+        ...(policy ? [`Knowledge: ${policy.title}`] : []),
+        ...(relevantMemory.length ? [`Memory: ${relevantMemory[0]}`] : []),
+      ],
+    };
+  }
+
+  if (/password|login|mfa|access|identity/.test(normalized)) {
+    const policy = relevantKnowledge.find((entry) => entry.category === 'Policy') ?? knowledgeBase[3];
+    const answer = [
+      `This appears to be an account access issue, so I would validate the customer identity and MFA status before any resets or configuration changes.`,
+      policy ? `The security policy states: ${policy.summary}` : 'The account access workflow requires a verified email and MFA challenge before changing configuration.',
+      customer ? `I would also confirm any recent access events for ${customer.name}.` : 'I would review recent access events before the next step.',
+    ].join(' ');
+
+    return {
+      answer,
+      mode: 'demo-local',
+      confidence: 0.84,
+      memoryUsed: relevantMemory.length > 0,
+      knowledgeUsed: relevantKnowledge.length > 0,
+      escalationRecommended: false,
+      sources: [
+        ...(policy ? [`Knowledge: ${policy.title}`] : []),
+        ...(relevantMemory.length ? [`Memory: ${relevantMemory[0]}`] : []),
+      ],
+    };
+  }
+
+  const policy = relevantKnowledge[0] ?? knowledgeBase[0];
+  const summary = customer ? `The customer record for ${customer.name} includes prior context and preference history.` : 'The customer record contains prior context and preference history.';
+  const answer = [
+    `I reviewed the customer context and the support knowledge for this case.`,
+    policy ? `The most relevant policy is: ${policy.summary}` : 'I would anchor the response to the policy and the customer’s recent interactions.',
+    summary,
+    recentContext ? `Recent conversation context: ${recentContext}` : 'There is no recent conversation context for this customer yet.',
+  ].join(' ');
+
+  return {
+    answer,
+    mode: 'demo-local',
+    confidence: 0.8,
+    memoryUsed: relevantMemory.length > 0 || Boolean(recentContext),
+    knowledgeUsed: Boolean(policy),
+    escalationRecommended: /urgent|frustrated|cancel|escalate/.test(normalized),
+    sources: [
+      ...(policy ? [`Knowledge: ${policy.title}`] : []),
+      ...(relevantMemory.length ? [`Memory: ${relevantMemory[0]}`] : []),
+      ...(recentContext ? [`Conversation: ${recentContext}`] : []),
+    ],
+  };
+}
+
+async function callConfiguredBackend(message: string, customerId?: string, conversation?: ConversationRecord) {
   const openAIApiKey = process.env.OPENAI_API_KEY?.trim();
   const azureApiKey = process.env.AZURE_OPENAI_API_KEY?.trim();
   const azureEndpoint = process.env.AZURE_OPENAI_ENDPOINT?.trim();
-
-  if (!openAIApiKey && !(azureApiKey && azureEndpoint)) {
-    throw new Error(getMissingProviderMessage());
-  }
 
   if (openAIApiKey) {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -26,7 +136,7 @@ async function callConfiguredBackend(message: string) {
         messages: [
           {
             role: 'system',
-            content: 'You are RecallDesk AI, an enterprise support assistant. Provide grounded, concise support answers and cite customer memory or policy evidence when useful.',
+            content: 'You are RecallDesk AI, an enterprise support assistant. Answer using support policy, memory, and customer context only.',
           },
           {
             role: 'user',
@@ -52,52 +162,56 @@ async function callConfiguredBackend(message: string) {
       answer,
       mode: 'live',
       confidence: 0.96,
-      memoryUsed: true,
+      memoryUsed: Boolean(customerId && memoryItems.some((entry) => entry.customerId === customerId)),
       knowledgeUsed: true,
       escalationRecommended: false,
       sources: ['Live OpenAI response'],
     };
   }
 
-  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o-mini';
-  const url = new URL(`${azureEndpoint!.replace(/\/$/, '')}/openai/deployments/${deployment}/chat/completions`);
-  url.searchParams.set('api-version', '2024-02-01');
+  if (azureApiKey && azureEndpoint) {
+    const deployment = process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o-mini';
+    const url = new URL(`${azureEndpoint.replace(/\/$/, '')}/openai/deployments/${deployment}/chat/completions`);
+    url.searchParams.set('api-version', '2024-02-01');
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'api-key': azureApiKey!,
-    },
-    body: JSON.stringify({
-      messages: [
-        { role: 'system', content: 'Respond as an enterprise support agent grounded in customer memory and policy evidence.' },
-        { role: 'user', content: message },
-      ],
-      temperature: 0.2,
-    }),
-  });
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': azureApiKey,
+      },
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: 'Respond as an enterprise support agent grounded in customer memory and policy evidence.' },
+          { role: 'user', content: message },
+        ],
+        temperature: 0.2,
+      }),
+    });
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Azure OpenAI backend rejected the request: ${text}`);
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Azure OpenAI backend rejected the request: ${text}`);
+    }
+
+    const payload = await response.json();
+    const answer = payload?.choices?.[0]?.message?.content;
+    if (!answer) {
+      throw new Error('Azure OpenAI returned an empty response.');
+    }
+
+    return {
+      answer,
+      mode: 'live',
+      confidence: 0.95,
+      memoryUsed: Boolean(customerId && memoryItems.some((entry) => entry.customerId === customerId)),
+      knowledgeUsed: true,
+      escalationRecommended: false,
+      sources: ['Live Azure OpenAI response'],
+    };
   }
 
-  const payload = await response.json();
-  const answer = payload?.choices?.[0]?.message?.content;
-  if (!answer) {
-    throw new Error('Azure OpenAI returned an empty response.');
-  }
-
-  return {
-    answer,
-    mode: 'live',
-    confidence: 0.95,
-    memoryUsed: true,
-    knowledgeUsed: true,
-    escalationRecommended: false,
-    sources: ['Live Azure OpenAI response'],
-  };
+  return buildLocalDemoAnswer(message, customerId, conversation);
 }
 
 export async function POST(request: Request) {
@@ -157,7 +271,7 @@ export async function POST(request: Request) {
       throw new Error('Conversation could not be created before the AI request.');
     }
 
-    const aiPayload = await callConfiguredBackend(message);
+    const aiPayload = await callConfiguredBackend(message, customerId, conversation);
     const agentMessage = createMessage('agent', 'AI Agent', aiPayload.answer);
     const finalConversation: ConversationRecord = {
       ...conversation,
@@ -189,13 +303,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: `AI request failed: ${message}`,
-        missingEnvironmentVariables: [
-          'OPENAI_API_KEY',
-          'AZURE_OPENAI_API_KEY',
-          'AZURE_OPENAI_ENDPOINT',
-          'AZURE_OPENAI_DEPLOYMENT',
-          'OPENAI_MODEL',
-        ],
+        fallback: getMissingProviderMessage(),
       },
       { status: 500 },
     );

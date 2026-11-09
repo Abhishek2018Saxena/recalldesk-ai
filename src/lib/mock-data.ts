@@ -4,6 +4,7 @@ export type Customer = {
   id: string;
   name: string;
   email: string;
+  phone: string;
   tier: 'Enterprise' | 'Business' | 'Pro';
   region: string;
   status: 'Active' | 'At Risk' | 'VIP';
@@ -111,6 +112,7 @@ export const customers: Customer[] = [
     id: 'C-1048',
     name: 'Priya Nair',
     email: 'priya@northstarlabs.com',
+    phone: '+1 (415) 555-0134',
     tier: 'Enterprise',
     region: 'US West',
     status: 'VIP',
@@ -124,6 +126,7 @@ export const customers: Customer[] = [
     id: 'C-2067',
     name: 'Marcus Lee',
     email: 'marcus@silverline.io',
+    phone: '+44 20 5555 0182',
     tier: 'Business',
     region: 'EMEA',
     status: 'At Risk',
@@ -137,6 +140,7 @@ export const customers: Customer[] = [
     id: 'C-4401',
     name: 'Alicia Gomez',
     email: 'alicia@harborhq.ai',
+    phone: '+61 2 5550 7421',
     tier: 'Pro',
     region: 'APAC',
     status: 'Active',
