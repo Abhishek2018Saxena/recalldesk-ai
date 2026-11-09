@@ -30,7 +30,7 @@ function buildLocalDemoAnswer(message: string, customerId?: string, conversation
     const policy = relevantKnowledge.find((entry) => entry.category === 'Delivery') ?? knowledgeBase[0];
     const memorySummary = relevantMemory[0] ?? 'The customer has prior delivery concerns and wants an update before the case closes.';
     const answer = [
-      `Based on the delivery policy and prior customer context, I would review the carrier ETA and shipment status before making any final promise.`,
+      `Demo reply: Based on the delivery policy and prior customer context, I would review the carrier ETA and shipment status before making any final promise.`,
       policy ? `The support policy states: ${policy.summary}` : 'The support policy requires confirming the carrier status and fulfillment timeline.',
       `The customer record also notes: ${memorySummary}`,
       customer ? `For ${customer.name}, I would keep the response grounded in the prior order details and follow-up preference.` : 'I would keep the response grounded in the customer’s previous issue history.',
@@ -54,7 +54,7 @@ function buildLocalDemoAnswer(message: string, customerId?: string, conversation
   if (/refund|billing|invoice|payment|credit/.test(normalized)) {
     const policy = relevantKnowledge.find((entry) => entry.category === 'Billing') ?? knowledgeBase[2];
     const answer = [
-      `I would review the billing exception policy and payment history before confirming a refund or credit.`,
+      `Demo reply: I would review the billing exception policy and payment history before confirming a refund or credit.`,
       policy ? `The support reference states: ${policy.summary}` : 'Refunds require payment verification and a review of the original transaction.',
       customer ? `The current customer record for ${customer.name} should be checked before finalizing any credit promise.` : 'The customer record should be reviewed before finalizing any credit promise.',
     ].join(' ');
@@ -76,7 +76,7 @@ function buildLocalDemoAnswer(message: string, customerId?: string, conversation
   if (/password|login|mfa|access|identity/.test(normalized)) {
     const policy = relevantKnowledge.find((entry) => entry.category === 'Policy') ?? knowledgeBase[3];
     const answer = [
-      `This appears to be an account access issue, so I would validate the customer identity and MFA status before any resets or configuration changes.`,
+      `Demo reply: This appears to be an account access issue, so I would validate the customer identity and MFA status before any resets or configuration changes.`,
       policy ? `The security policy states: ${policy.summary}` : 'The account access workflow requires a verified email and MFA challenge before changing configuration.',
       customer ? `I would also confirm any recent access events for ${customer.name}.` : 'I would review recent access events before the next step.',
     ].join(' ');
@@ -98,7 +98,7 @@ function buildLocalDemoAnswer(message: string, customerId?: string, conversation
   const policy = relevantKnowledge[0] ?? knowledgeBase[0];
   const summary = customer ? `The customer record for ${customer.name} includes prior context and preference history.` : 'The customer record contains prior context and preference history.';
   const answer = [
-    `I reviewed the customer context and the support knowledge for this case.`,
+    `Demo reply: I reviewed the customer context and the support knowledge for this case.`,
     policy ? `The most relevant policy is: ${policy.summary}` : 'I would anchor the response to the policy and the customer’s recent interactions.',
     summary,
     recentContext ? `Recent conversation context: ${recentContext}` : 'There is no recent conversation context for this customer yet.',

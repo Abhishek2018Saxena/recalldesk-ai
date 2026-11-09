@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Bell, ChevronDown, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, ShieldCheck, Sparkles, SunMedium, MoonStar } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { clearDemoSession, DEMO_USER, isDemoSessionActive } from '@/lib/demo-session';
 import { navItems } from '@/lib/mock-data';
 import { supabase } from '@/lib/supabase/client';
 
@@ -12,11 +13,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isDark, setIsDark] = useState(true);
-  const [userName, setUserName] = useState('Workspace User');
-  const [userRole, setUserRole] = useState('Administrator');
+  const [isDemo] = useState(() => isDemoSessionActive());
+  const [userName, setUserName] = useState(() => (isDemoSessionActive() ? DEMO_USER.name : 'Workspace User'));
+  const [userRole, setUserRole] = useState(() => (isDemoSessionActive() ? DEMO_USER.role : 'Administrator'));
 
   useEffect(() => {
-    if (!supabase) {
+    if (isDemo || !supabase) {
       return;
     }
 
@@ -40,11 +42,29 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, [isDemo, router]);
 
   const activeItem = navItems.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
 
+  const handleResetDemoData = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('recalldesk-demo-conversations');
+      window.localStorage.removeItem('recalldesk-demo-tickets');
+      window.localStorage.removeItem('recalldesk-demo-memory');
+      window.localStorage.removeItem('recalldesk-conversation-threads');
+    }
+
+    router.refresh();
+  };
+
   const handleLogout = async () => {
+    if (isDemo) {
+      clearDemoSession();
+      router.replace('/login');
+      router.refresh();
+      return;
+    }
+
     if (supabase) {
       const { error } = await supabase.auth.signOut();
       if (error) {
@@ -106,14 +126,37 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               })}
             </nav>
 
-            <div className="mt-auto rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-              <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-emerald-300">
-                <ShieldCheck className="h-4 w-4" />
-                Secure mode
+            <div className="mt-auto space-y-3">
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
+                <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-amber-200">
+                  <ShieldCheck className="h-4 w-4" />
+                  {isDemo ? 'Demo mode' : 'Secure mode'}
+                </div>
+                <p className="text-sm text-slate-200">
+                  {isDemo
+                    ? 'Demo access is restricted to sandbox data and sample actions only.'
+                    : 'Customer memory and access rules are isolated to the signed-in workspace.'}
+                </p>
               </div>
-              <p className="text-sm text-slate-200">
-                Customer memory and access rules are isolated to the signed-in workspace. Demo mode is clearly labeled.
-              </p>
+
+              {isDemo && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={handleResetDemoData}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-200 hover:border-slate-500"
+                  >
+                    Reset Demo Data
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm font-medium text-rose-200 hover:border-rose-400"
+                  >
+                    Exit Demo
+                  </button>
+                </div>
+              )}
             </div>
           </aside>
 
@@ -137,6 +180,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 </div>
 
                 <div className="flex items-center gap-2 sm:gap-3">
+                  {isDemo && (
+                    <div className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-200">
+                      DEMO MODE
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => setIsDark((value) => !value)}
@@ -148,6 +196,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   <button type="button" className="rounded-xl border border-slate-700 bg-slate-900 p-2 text-slate-300 hover:border-slate-500">
                     <Bell className="h-4 w-4" />
                   </button>
+
+                  {isDemo && (
+                    <button
+                      type="button"
+                      onClick={handleResetDemoData}
+                      className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 hover:border-slate-500"
+                    >
+                      Reset Demo Data
+                    </button>
+                  )}
 
                   <div className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2">
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 text-sm font-semibold text-white">
@@ -168,7 +226,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                     type="button"
                     onClick={handleLogout}
                     className="rounded-xl border border-slate-700 bg-slate-900 p-2 text-slate-300 hover:border-slate-500"
-                    aria-label="Log out"
+                    aria-label={isDemo ? 'Exit demo mode' : 'Log out'}
                   >
                     <LogOut className="h-4 w-4" />
                   </button>

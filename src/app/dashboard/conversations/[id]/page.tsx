@@ -1,13 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { type ConversationRecord } from '@/lib/conversation-store';
+import { getConversationStore, type ConversationRecord } from '@/lib/conversation-store';
+import { isDemoSessionActive } from '@/lib/demo-session';
 
 export default function DashboardConversationDetailPage({ params }: { params: { id: string } }) {
   const [conversation, setConversation] = useState<ConversationRecord | null>(null);
 
   useEffect(() => {
     const load = async () => {
+      if (isDemoSessionActive()) {
+        const match = getConversationStore().find((entry) => entry.id === params.id) ?? null;
+        setConversation(match);
+        return;
+      }
+
       try {
         const response = await fetch('/api/conversations');
         const payload = (await response.json()) as ConversationRecord[];

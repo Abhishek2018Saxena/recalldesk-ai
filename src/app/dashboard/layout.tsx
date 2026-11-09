@@ -3,13 +3,18 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard-shell';
+import { isDemoSessionActive } from '@/lib/demo-session';
 import { supabase } from '@/lib/supabase/client';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(() => isDemoSessionActive());
 
   useEffect(() => {
+    if (isDemoSessionActive()) {
+      return;
+    }
+
     if (!supabase) {
       router.replace('/login');
       return;

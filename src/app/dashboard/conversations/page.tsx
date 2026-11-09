@@ -3,7 +3,8 @@
 import { Clock3, Search, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { searchConversations, type ConversationRecord } from '@/lib/conversation-store';
+import { getConversationStore, searchConversations, type ConversationRecord } from '@/lib/conversation-store';
+import { isDemoSessionActive } from '@/lib/demo-session';
 
 export default function DashboardConversationsPage() {
   const [conversations, setConversations] = useState<ConversationRecord[]>([]);
@@ -12,6 +13,12 @@ export default function DashboardConversationsPage() {
 
   useEffect(() => {
     const load = async () => {
+      if (isDemoSessionActive()) {
+        setConversations(getConversationStore());
+        setIsLoading(false);
+        return;
+      }
+
       try {
         const response = await fetch('/api/conversations');
         const payload = (await response.json()) as ConversationRecord[];

@@ -2,6 +2,7 @@
 
 import { Eye, Search, ShieldOff, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { isDemoSessionActive } from '@/lib/demo-session';
 
 type MemoryRecord = {
   id: string;
@@ -23,6 +24,15 @@ export default function DashboardMemoryPage() {
 
   useEffect(() => {
     const loadMemory = async () => {
+      if (isDemoSessionActive()) {
+        const loaded = typeof window !== 'undefined' ? window.localStorage.getItem('recalldesk-demo-memory') : null;
+        const items = loaded ? (JSON.parse(loaded) as MemoryRecord[]) : [];
+        setMemoryList(Array.isArray(items) ? items : []);
+        setSelectedId(Array.isArray(items) ? items[0]?.id ?? '' : '');
+        setLoading(false);
+        return;
+      }
+
       try {
         const response = await fetch('/api/memory');
         const payload = (await response.json()) as MemoryRecord[];
@@ -55,9 +65,12 @@ export default function DashboardMemoryPage() {
   const selectedMemory = filteredMemory.find((memory) => memory.id === selectedId) ?? filteredMemory[0] ?? null;
 
   const handleDelete = (id: string) => {
-    setMemoryList((current) => current.filter((memory) => memory.id !== id));
+    const nextList = memoryList.filter((memory) => memory.id !== id);
+    setMemoryList(nextList);
+    if (typeof window !== 'undefined' && isDemoSessionActive()) {
+      window.localStorage.setItem('recalldesk-demo-memory', JSON.stringify(nextList));
+    }
     if (selectedId === id) {
-      const nextList = memoryList.filter((memory) => memory.id !== id);
       setSelectedId(nextList[0]?.id ?? '');
     }
   };

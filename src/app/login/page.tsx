@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, ShieldCheck, Sparkles } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
+import { setDemoSession } from '@/lib/demo-session';
 import { supabase } from '@/lib/supabase/client';
 
 export default function LoginPage() {
@@ -14,6 +15,13 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const handleContinueDemo = () => {
+    setError('');
+    setDemoSession(true);
+    router.replace('/dashboard');
+    router.refresh();
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -158,7 +166,7 @@ export default function LoginPage() {
         {/* Login section */}
         <section className="flex flex-col justify-center p-8 sm:p-12">
           <div className="mb-8 text-right text-sm text-slate-400">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link
               href="/signup"
               className="font-semibold text-blue-400 hover:text-blue-300"
@@ -261,6 +269,14 @@ export default function LoginPage() {
               className="w-full rounded-xl bg-blue-600 px-4 py-3.5 font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? 'Signing in...' : 'Sign in to RecallDesk'}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleContinueDemo}
+              className="mt-3 w-full rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3.5 font-semibold text-amber-200 transition hover:border-amber-400 hover:bg-amber-500/15"
+            >
+              Continue in Demo Mode
             </button>
           </form>
 

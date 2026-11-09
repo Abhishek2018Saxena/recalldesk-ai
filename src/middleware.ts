@@ -28,8 +28,9 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isPublicPath = publicPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
   const isProtected = protectedPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+  const isDemoSession = request.cookies.get('recalldesk-demo-session')?.value === 'active';
 
-  if (!isProtected || isPublicPath || !supabaseUrl || !supabaseAnonKey) {
+  if (!isProtected || isPublicPath || isDemoSession || !supabaseUrl || !supabaseAnonKey) {
     return response;
   }
 

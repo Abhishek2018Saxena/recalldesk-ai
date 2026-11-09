@@ -1,3 +1,5 @@
+import { readDemoData, writeDemoData } from '@/lib/demo-session';
+
 export type ConversationMessage = {
   id: string;
   type: 'customer' | 'agent' | 'system';
@@ -123,17 +125,19 @@ export function getConversationStore() {
     return [...baseConversationRecords];
   }
 
-  const store = (globalThis as typeof globalThis & { __recalldeskConversationStore?: ConversationRecord[] }).__recalldeskConversationStore;
-  if (!store) {
-    const seeded = JSON.parse(JSON.stringify(baseConversationRecords)) as ConversationRecord[];
-    (globalThis as typeof globalThis & { __recalldeskConversationStore?: ConversationRecord[] }).__recalldeskConversationStore = seeded;
-    return seeded;
+  const globalStore = (globalThis as typeof globalThis & { __recalldeskConversationStore?: ConversationRecord[] }).__recalldeskConversationStore;
+  if (globalStore) {
+    return globalStore;
   }
 
-  return store;
+  const persisted = readDemoData<ConversationRecord[]>('recalldesk-demo-conversations', baseConversationRecords);
+  const seeded = JSON.parse(JSON.stringify(persisted)) as ConversationRecord[];
+  (globalThis as typeof globalThis & { __recalldeskConversationStore?: ConversationRecord[] }).__recalldeskConversationStore = seeded;
+  return seeded;
 }
 
 export function replaceConversationStore(nextRecords: ConversationRecord[]) {
   (globalThis as typeof globalThis & { __recalldeskConversationStore?: ConversationRecord[] }).__recalldeskConversationStore = nextRecords;
+  writeDemoData('recalldesk-demo-conversations', nextRecords);
   return nextRecords;
 }

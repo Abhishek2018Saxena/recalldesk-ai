@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { tickets as demoTickets } from '@/lib/mock-data';
+import { isDemoSessionActive } from '@/lib/demo-session';
 
 type TicketRecord = {
   id: string;
@@ -24,6 +26,14 @@ export default function DashboardTicketsPage() {
 
   useEffect(() => {
     const loadTickets = async () => {
+      if (isDemoSessionActive()) {
+        const stored = typeof window !== 'undefined' ? window.localStorage.getItem('recalldesk-demo-tickets') : null;
+        const fallback = stored ? (JSON.parse(stored) as TicketRecord[]) : demoTickets;
+        setTicketList(Array.isArray(fallback) && fallback.length ? fallback : demoTickets);
+        setLoading(false);
+        return;
+      }
+
       try {
         const response = await fetch('/api/tickets');
         const payload = (await response.json()) as TicketRecord[];
@@ -38,6 +48,33 @@ export default function DashboardTicketsPage() {
 
     void loadTickets();
   }, []);
+
+  const updateTicketStatus = async (ticketId: string, nextStatus: string) => {
+    try {
+      if (isDemoSessionActive() && typeof window !== 'undefined') {
+        const next = ticketList.map((ticket) => (ticket.id === ticketId ? { ...ticket, status: nextStatus, updated_at: new Date().toISOString() } : ticket));
+        setTicketList(next);
+        window.localStorage.setItem('recalldesk-demo-tickets', JSON.stringify(next));
+        return;
+      }
+
+      const response = await fetch('/api/tickets', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: ticketId, status: nextStatus }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Unable to update ticket status');
+      }
+
+      const updated = (await response.json()) as TicketRecord;
+      setTicketList((current) => current.map((ticket) => (ticket.id === ticketId ? { ...ticket, ...updated, status: nextStatus } : ticket)));
+    } catch (caughtError) {
+      const message = caughtError instanceof Error ? caughtError.message : 'Unable to update ticket status';
+      setError(message);
+    }
+  };
 
   const handleCreateTicket = async () => {
     const newTicket = {
@@ -54,6 +91,13 @@ export default function DashboardTicketsPage() {
     };
 
     try {
+      if (isDemoSessionActive() && typeof window !== 'undefined') {
+        const next = [newTicket as TicketRecord, ...ticketList];
+        setTicketList(next);
+        window.localStorage.setItem('recalldesk-demo-tickets', JSON.stringify(next));
+        return;
+      }
+
       const response = await fetch('/api/tickets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -106,7 +150,24 @@ export default function DashboardTicketsPage() {
                   <td className="px-4 py-3">{ticket.customerId ?? ticket.customer_id ?? '—'}</td>
                   <td className="px-4 py-3">{ticket.category}</td>
                   <td className="px-4 py-3"><span className="rounded-full bg-amber-500/10 px-2 py-1 text-xs text-amber-200">{ticket.priority}</span></td>
-                  <td className="px-4 py-3"><span className="rounded-full bg-blue-500/10 px-2 py-1 text-xs text-blue-200">{ticket.status}</span></td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-blue-500/10 px-2 py-1 text-xs text-blue-200">{ticket.status}</span>
+                      <select
+                        aria-label={`Update ${ticket.id} status`}
+                        value={ticket.status ?? 'Open'}
+                        onChange={(event) => void updateTicketStatus(ticket.id, event.target.value)}
+                        className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200 outline-none"
+                      >
+                        <option value="Open">Open</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Escalated">Escalated</option>
+                        <option value="Resolved">Resolved</option>
+                        <option value="Closed">Closed</option>
+                      </select>
+                    </div>
+                  </td>
                   <td className="px-4 py-3">{ticket.assignedTo ?? ticket.assigned_to ?? 'Unassigned'}</td>
                 </tr>
               ))}

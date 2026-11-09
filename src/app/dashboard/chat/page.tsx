@@ -2,7 +2,8 @@
 
 import { Bot, MessageSquareText, SendHorizonal, User } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { createConversationId, createMessage, type ConversationRecord } from '@/lib/conversation-store';
+import { createConversationId, createMessage, getConversationStore, replaceConversationStore, type ConversationRecord } from '@/lib/conversation-store';
+import { isDemoSessionActive } from '@/lib/demo-session';
 
 const STORAGE_KEY = 'recalldesk-conversation-threads';
 
@@ -16,6 +17,13 @@ export default function DashboardChatPage() {
 
   useEffect(() => {
     const loadConversations = async () => {
+      if (isDemoSessionActive()) {
+        const seeded = getConversationStore();
+        setConversations(seeded);
+        setActiveConversationId((current) => current ?? seeded[0]?.id ?? null);
+        return;
+      }
+
       try {
         const response = await fetch('/api/conversations');
         const payload = (await response.json()) as ConversationRecord[];
@@ -48,6 +56,9 @@ export default function DashboardChatPage() {
   useEffect(() => {
     if (typeof window !== 'undefined' && conversations.length) {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+      if (isDemoSessionActive()) {
+        replaceConversationStore(conversations);
+      }
     }
   }, [conversations]);
 
@@ -93,7 +104,11 @@ export default function DashboardChatPage() {
       ],
     };
 
-    setConversations((current) => [newConversation, ...current]);
+    const nextConversations = [newConversation, ...conversations];
+    setConversations(nextConversations);
+    if (isDemoSessionActive()) {
+      replaceConversationStore(nextConversations);
+    }
     setActiveConversationId(newConversation.id);
     setDraft('');
     setStatus('Fresh conversation started');
