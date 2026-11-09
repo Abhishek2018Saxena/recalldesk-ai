@@ -46,9 +46,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const handleLogout = async () => {
     if (supabase) {
-      await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Logout failed:', error.message);
+      }
     }
-    router.push('/login');
+    router.replace('/login');
     router.refresh();
   };
 

@@ -9,8 +9,8 @@ import { supabase } from '@/lib/supabase/client';
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState('alicia@recalldesk.ai');
-  const [password, setPassword] = useState('demo-password');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -19,20 +19,20 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
-    if (!email.includes('@') || password.length < 8) {
-      setError('Use a valid work email and a password with at least 8 characters.');
+    if (!email.trim() || !email.includes('@') || password.length < 8) {
+      setError('Enter a valid work email and a password with at least 8 characters.');
       setLoading(false);
       return;
     }
 
     if (!supabase) {
-      setError('Supabase is not configured yet. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel before signing in.');
+      setError('Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to your environment before signing in.');
       setLoading(false);
       return;
     }
 
     try {
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (signInError) {
         throw signInError;
       }
@@ -43,13 +43,13 @@ export default function LoginPage() {
       }
 
       if (!session || !signInData.user) {
-        throw new Error('The sign-in request succeeded, but the session was not created. Check your Supabase auth settings and redirect configuration.');
+        throw new Error('The sign-in request succeeded, but the session was not created. Please verify your Supabase auth settings and redirect configuration.');
       }
 
       router.replace('/dashboard');
       router.refresh();
     } catch (caughtError) {
-      const message = caughtError instanceof Error ? caughtError.message : 'Login failed.';
+      const message = caughtError instanceof Error ? caughtError.message : 'Login failed. Please check your credentials and try again.';
       setError(message);
     } finally {
       setLoading(false);
@@ -73,12 +73,12 @@ export default function LoginPage() {
 
             <div className="space-y-5">
               <div>
-                <div className="text-sm uppercase tracking-[0.18em] text-blue-300">Demo access</div>
+                <div className="text-sm uppercase tracking-[0.18em] text-blue-300">Secure sign-in</div>
                 <h1 className="mt-2 text-3xl font-semibold text-white">Sign in to your workspace</h1>
               </div>
               <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
-                <div className="flex items-center gap-2 font-medium"><ShieldCheck className="h-4 w-4" /> Demo login ready</div>
-                <p className="mt-2 text-emerald-50/90">Use the prefilled admin demo account to enter the product immediately.</p>
+                <div className="flex items-center gap-2 font-medium"><ShieldCheck className="h-4 w-4" /> Supabase auth enabled</div>
+                <p className="mt-2 text-emerald-50/90">Use the email and password for your RecallDesk workspace account.</p>
               </div>
             </div>
           </div>
@@ -127,10 +127,6 @@ export default function LoginPage() {
 
               <button type="submit" disabled={loading} className="w-full rounded-xl bg-blue-500 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-70">
                 {loading ? 'Signing in…' : 'Sign in'}
-              </button>
-
-              <button type="button" onClick={() => { document.cookie = 'recalldesk_session=demo-admin; path=/; max-age=86400'; router.push('/dashboard'); }} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm font-medium text-slate-200">
-                Use demo login
               </button>
             </form>
           </div>

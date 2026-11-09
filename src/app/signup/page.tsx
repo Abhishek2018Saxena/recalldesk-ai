@@ -10,8 +10,8 @@ export default function SignupPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [form, setForm] = useState({ fullName: 'Alicia Diaz', email: 'alicia@recalldesk.ai', company: 'Northstar Labs', role: 'Support Lead', password: 'demo-password', confirmPassword: 'demo-password' });
-  const [accepted, setAccepted] = useState(true);
+  const [form, setForm] = useState({ fullName: '', email: '', company: '', role: '', password: '', confirmPassword: '' });
+  const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -46,16 +46,18 @@ export default function SignupPage() {
     setError('');
 
     try {
+      const redirectTo = process.env.NEXT_PUBLIC_SUPABASE_AUTH_REDIRECT_URL || (typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : 'http://localhost:3000/auth/callback');
+
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email: form.email,
+        email: form.email.trim(),
         password: form.password,
         options: {
           data: {
-            full_name: form.fullName,
-            company: form.company,
-            role: form.role,
+            full_name: form.fullName.trim(),
+            company: form.company.trim(),
+            role: form.role.trim(),
           },
-          emailRedirectTo: process.env.NEXT_PUBLIC_SUPABASE_AUTH_REDIRECT_URL || `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/auth/callback`,
+          emailRedirectTo: redirectTo,
         },
       });
 
@@ -64,14 +66,14 @@ export default function SignupPage() {
       }
 
       if (data.user && !data.session) {
-        setError('Account created. Check your email to confirm sign-in before continuing.');
+        setError('Account created. Check your email inbox and confirm the address before signing in.');
         return;
       }
 
-      router.push('/dashboard');
+      router.replace('/dashboard');
       router.refresh();
     } catch (caughtError) {
-      const message = caughtError instanceof Error ? caughtError.message : 'Account creation failed.';
+      const message = caughtError instanceof Error ? caughtError.message : 'Account creation failed. Please check your details and try again.';
       setError(message);
     } finally {
       setLoading(false);
