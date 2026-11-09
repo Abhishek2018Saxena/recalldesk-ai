@@ -16,28 +16,36 @@ export default function LoginPage() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    console.log('Login form submit fired', { email: email.trim(), passwordLength: password.length });
     setLoading(true);
     setError('');
 
     if (!email.trim() || !email.includes('@') || password.length < 8) {
+      console.log('Login validation failed', { email: email.trim(), passwordLength: password.length });
       setError('Enter a valid work email and a password with at least 8 characters.');
       setLoading(false);
       return;
     }
 
     if (!supabase) {
+      console.log('Supabase client missing during login attempt');
       setError('Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to your environment before signing in.');
       setLoading(false);
       return;
     }
 
     try {
+      console.log('Calling supabase.auth.signInWithPassword');
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      console.log('Supabase auth response', { signInData, signInError });
+
       if (signInError) {
         throw signInError;
       }
 
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log('Session check after login', { session, sessionError });
+
       if (sessionError) {
         throw sessionError;
       }
@@ -46,13 +54,22 @@ export default function LoginPage() {
         throw new Error('The sign-in request succeeded, but the session was not created. Please verify your Supabase auth settings and redirect configuration.');
       }
 
+      console.log('Redirecting to dashboard after successful login');
       router.replace('/dashboard');
       router.refresh();
     } catch (caughtError) {
       const message = caughtError instanceof Error ? caughtError.message : 'Login failed. Please check your credentials and try again.';
+      console.error('Login submit failed', caughtError);
       setError(message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSignInClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    console.log('Sign in button clicked');
+    if (event.currentTarget.form) {
+      event.currentTarget.form.requestSubmit();
     }
   };
 
@@ -125,7 +142,7 @@ export default function LoginPage() {
 
               {error ? <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div> : null}
 
-              <button type="submit" disabled={loading} className="w-full rounded-xl bg-blue-500 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-70">
+              <button type="submit" onClick={handleSignInClick} disabled={loading} className="w-full rounded-xl bg-blue-500 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-70">
                 {loading ? 'Signing in…' : 'Sign in'}
               </button>
             </form>
