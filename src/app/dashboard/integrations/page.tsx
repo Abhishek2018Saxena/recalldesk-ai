@@ -1,15 +1,32 @@
+'use client';
+
+import { useState } from 'react';
 import { integrationStatus } from '@/lib/mock-data';
 
 export default function DashboardIntegrationsPage() {
+  const [statuses, setStatuses] = useState(integrationStatus);
+
+  const handleRefresh = () => {
+    setStatuses((current) =>
+      current.map((integration, index) => {
+        const nextStatus = ['Connected', 'Demo mode', 'Configuration required'][index % 3];
+        return { ...integration, status: nextStatus as typeof integration.status };
+      }),
+    );
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-sm font-medium uppercase tracking-[0.18em] text-sky-300">Integrations</p>
-        <h1 className="mt-2 text-3xl font-semibold text-white">Connected services and readiness</h1>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium uppercase tracking-[0.18em] text-sky-300">Integrations</p>
+          <h1 className="mt-2 text-3xl font-semibold text-white">Connected services and readiness</h1>
+        </div>
+        <button type="button" onClick={handleRefresh} className="rounded-xl bg-sky-500 px-4 py-2 text-sm font-medium text-slate-950">Refresh status</button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {integrationStatus.map((integration) => (
+        {statuses.map((integration) => (
           <div key={integration.name} className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
             <div className="flex items-center justify-between">
               <div className="text-lg font-semibold text-white">{integration.name}</div>

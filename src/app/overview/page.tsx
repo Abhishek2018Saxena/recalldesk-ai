@@ -1,4 +1,7 @@
+'use client';
+
 import { Activity, ArrowUpRight, MessageSquareText, ShieldCheck, Sparkles } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { OverviewAreaChart } from '@/components/charts';
 import { analyticsTrend, customers, memoryItems, overviewStats, tickets } from '@/lib/mock-data';
 
@@ -10,6 +13,8 @@ const toneMap = {
 };
 
 export default function OverviewPage() {
+  const router = useRouter();
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
@@ -81,7 +86,7 @@ export default function OverviewPage() {
         <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold text-white">Active cases</h2>
-            <button className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">Open queue</button>
+            <button type="button" onClick={() => router.push('/dashboard/tickets')} className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">Open queue</button>
           </div>
           <div className="space-y-3">
             {tickets.slice(0, 3).map((ticket) => (
@@ -140,9 +145,9 @@ export default function OverviewPage() {
         <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
           <h2 className="text-xl font-semibold text-white">Quick actions</h2>
           <div className="mt-4 space-y-3 text-sm text-slate-200">
-            <button className="flex w-full items-center justify-between rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-left">New conversation <ArrowUpRight className="h-4 w-4" /></button>
-            <button className="flex w-full items-center justify-between rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-left">Create ticket <ArrowUpRight className="h-4 w-4" /></button>
-            <button className="flex w-full items-center justify-between rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-left">Review escalations <ArrowUpRight className="h-4 w-4" /></button>
+            <button type="button" onClick={() => router.push('/dashboard/chat')} className="flex w-full items-center justify-between rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-left">New conversation <ArrowUpRight className="h-4 w-4" /></button>
+            <button type="button" onClick={() => router.push('/dashboard/tickets')} className="flex w-full items-center justify-between rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-left">Create ticket <ArrowUpRight className="h-4 w-4" /></button>
+            <button type="button" onClick={() => router.push('/dashboard/escalations')} className="flex w-full items-center justify-between rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-left">Review escalations <ArrowUpRight className="h-4 w-4" /></button>
           </div>
         </div>
       </div>

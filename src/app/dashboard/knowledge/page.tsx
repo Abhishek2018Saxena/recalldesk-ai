@@ -1,7 +1,26 @@
+'use client';
+
 import { Search, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
 import { knowledgeBase } from '@/lib/mock-data';
 
 export default function DashboardKnowledgePage() {
+  const [articles, setArticles] = useState(knowledgeBase);
+
+  const handleAddArticle = () => {
+    setArticles((current) => [
+      {
+        id: `KB-${Date.now().toString().slice(-4)}`,
+        title: 'Follow-up credit and replacement policy',
+        category: 'Billing',
+        source: 'Ops Team',
+        updatedAt: 'Today',
+        summary: 'When a repeat fulfillment issue is confirmed, support can offer account credit and replacement review in the same case workflow.',
+      },
+      ...current,
+    ]);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -9,11 +28,11 @@ export default function DashboardKnowledgePage() {
           <p className="text-sm font-medium uppercase tracking-[0.18em] text-emerald-300">Knowledge Base</p>
           <h1 className="mt-2 text-3xl font-semibold text-white">Grounded support content</h1>
         </div>
-        <button className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-medium text-slate-950">Add article</button>
+        <button type="button" onClick={handleAddArticle} className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-medium text-slate-950">Add article</button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {knowledgeBase.map((article) => (
+        {articles.map((article) => (
           <div key={article.id} className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
             <div className="flex items-center justify-between">
               <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-emerald-200">{article.category}</span>
