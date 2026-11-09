@@ -17,20 +17,19 @@ const protectedPaths = [
   '/settings',
 ];
 
+const publicPaths = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback'];
+
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({ request: { headers: request.headers } });
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return response;
-  }
-
   const pathname = request.nextUrl.pathname;
+  const isPublicPath = publicPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
   const isProtected = protectedPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 
-  if (!isProtected) {
+  if (!isProtected || isPublicPath || !supabaseUrl || !supabaseAnonKey) {
     return response;
   }
 

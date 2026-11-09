@@ -32,11 +32,21 @@ export default function LoginPage() {
     }
 
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) {
         throw signInError;
       }
-      router.push('/dashboard');
+
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        throw sessionError;
+      }
+
+      if (!session || !signInData.user) {
+        throw new Error('The sign-in request succeeded, but the session was not created. Check your Supabase auth settings and redirect configuration.');
+      }
+
+      router.replace('/dashboard');
       router.refresh();
     } catch (caughtError) {
       const message = caughtError instanceof Error ? caughtError.message : 'Login failed.';
