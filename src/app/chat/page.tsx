@@ -69,10 +69,21 @@ export default function ChatPage() {
     setError(null);
 
     try {
+      const persistedConversation = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedConversation),
+      }).then((response) => response.json() as Promise<ConversationRecord>);
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage.text, customerName: activeConversation.customerName }),
+        body: JSON.stringify({
+          conversationId: persistedConversation.id,
+          customerId: persistedConversation.customerId,
+          customerName: persistedConversation.customerName,
+          message: userMessage.text,
+        }),
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -81,21 +92,22 @@ export default function ChatPage() {
 
       const agentMessage = createMessage('agent', 'AI Agent', payload.answer || 'I’m unable to provide a grounded response right now.');
       const nextConversation: ConversationRecord = {
-        ...updatedConversation,
+        ...persistedConversation,
         messages: [...updatedConversation.messages, agentMessage],
         summary: payload.answer || updatedConversation.summary,
+        lastUpdated: new Date().toISOString(),
       };
 
       setConversations((current) => current.map((conversation) => (conversation.id === activeConversation.id ? nextConversation : conversation)));
       await fetch('/api/conversations', {
-        method: 'PATCH',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(nextConversation),
       });
     } catch (caughtError) {
       const message = caughtError instanceof Error ? caughtError.message : 'Could not get a response';
       setError(message);
-      const failureMessage = createMessage('system', 'System', `I could not complete the request: ${message}`);
+      const failureMessage = createMessage('system', 'System', `AI request failed: ${message}. Configure OPENAI_API_KEY or AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT in Vercel before retrying.`);
       const failedConversation: ConversationRecord = {
         ...updatedConversation,
         messages: [...updatedConversation.messages, failureMessage],

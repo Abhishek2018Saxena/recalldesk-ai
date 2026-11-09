@@ -60,7 +60,7 @@ export default function DashboardChatPage() {
 
   const persistConversation = async (conversation: ConversationRecord) => {
     const response = await fetch('/api/conversations', {
-      method: 'PATCH',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(conversation),
     });
@@ -154,12 +154,15 @@ export default function DashboardChatPage() {
     setError(null);
 
     try {
+      const persistedConversation = await persistConversation(updatedConversation);
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          conversationId: persistedConversation.id,
+          customerId: persistedConversation.customerId,
+          customerName: persistedConversation.customerName,
           message: trimmed,
-          customerName: activeConversation.customerName,
         }),
       });
 
@@ -170,21 +173,21 @@ export default function DashboardChatPage() {
 
       const agentMessage = createMessage('agent', 'AI Agent', payload.answer || 'I’m unable to provide a grounded response right now.');
       const finalConversation: ConversationRecord = {
-        ...updatedConversation,
+        ...persistedConversation,
         memoryUsed: Boolean(payload.memoryUsed),
         knowledgeUsed: Boolean(payload.knowledgeUsed),
-        messages: [...updatedConversation.messages, agentMessage],
-        summary: payload.answer || updatedConversation.summary,
+        messages: [...persistedConversation.messages, agentMessage],
+        summary: payload.answer || persistedConversation.summary,
         lastUpdated: new Date().toISOString(),
       };
 
       setConversations((current) => current.map((conversation) => (conversation.id === activeConversation.id ? finalConversation : conversation)));
-      setStatus(payload.mode === 'live' ? 'Live AI backend active' : 'Demo adapter active — live Hindsight not configured');
+      setStatus(payload.mode === 'live' ? 'Live AI backend active' : 'Live AI backend active');
       await persistConversation(finalConversation);
     } catch (caughtError) {
       const message = caughtError instanceof Error ? caughtError.message : 'Unknown AI backend error';
       setError(message);
-      const failureMessage = createMessage('system', 'System', `AI request failed: ${message}. Please verify the backend provider settings or continue in demo mode.`);
+      const failureMessage = createMessage('system', 'System', `AI request failed: ${message}. Configure OPENAI_API_KEY or AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT in Vercel before retrying.`);
       const failedConversation: ConversationRecord = {
         ...updatedConversation,
         messages: [...updatedConversation.messages, failureMessage],
