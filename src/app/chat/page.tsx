@@ -1,33 +1,69 @@
 'use client';
 
 import { Bot, MessageSquareText, RefreshCw, SendHorizonal, User } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createConversationId, createMessage, type ConversationRecord } from '@/lib/conversation-store';
 
-const chatThreads = [
-  { customer: 'Priya Nair', preview: 'The delayed order is resolved—can you send the updated ETA?', status: 'Resolved' },
-  { customer: 'Marcus Lee', preview: 'I need a human agent to review the shipment delay.', status: 'Escalated' },
-  { customer: 'Alicia Gomez', preview: 'I still cannot reset my multi-factor authentication.', status: 'Open' },
-];
-
-const transcript = [
-  { type: 'customer', author: 'Priya Nair', text: 'I wanted an update on my delayed order. The product arrived late and I was frustrated by the lack of status updates.' },
-  { type: 'agent', author: 'AI Agent', text: 'I’m seeing a previous order delay for this customer and the delivery policy indicates a replacement may be eligible. I can help with the latest shipment update.' },
-  { type: 'customer', author: 'Priya Nair', text: 'Thanks, I’d prefer an email summary after resolution.' },
-  { type: 'agent', author: 'AI Agent', text: 'Understood. I’ve identified the relevant memory and will include the update in the summary. No unnecessary repeat questions are needed.' },
-];
+const STORAGE_KEY = 'recalldesk-simple-chat';
 
 export default function ChatPage() {
+  const [conversations, setConversations] = useState<ConversationRecord[]>([]);
   const [selectedThread, setSelectedThread] = useState('Priya Nair');
   const [draft, setDraft] = useState('I’d like the latest carrier update and a summary for the support ticket.');
-  const [messages, setMessages] = useState(transcript);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async () => {
-    if (!draft.trim()) return;
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const response = await fetch('/api/conversations');
+        const payload = (await response.json()) as ConversationRecord[];
+        if (Array.isArray(payload) && payload.length) {
+          setConversations(payload);
+          setSelectedThread(payload[0]?.customerName ?? 'Priya Nair');
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+          }
+        }
+      } catch {
+        if (typeof window === 'undefined') return;
+        const stored = window.localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored) as ConversationRecord[];
+            if (Array.isArray(parsed) && parsed.length) {
+              setConversations(parsed);
+              setSelectedThread(parsed[0]?.customerName ?? 'Priya Nair');
+            }
+          } catch {
+            // no-op
+          }
+        }
+      }
+    };
 
-    const userMessage = { type: 'customer', author: 'Priya Nair', text: draft.trim() };
-    setMessages((current) => [...current, userMessage]);
+    void load();
+  }, []);
+
+  const activeConversation = useMemo(
+    () => conversations.find((conversation) => conversation.customerName === selectedThread) ?? conversations[0] ?? null,
+    [conversations, selectedThread],
+  );
+
+  const messages = activeConversation?.messages ?? [];
+
+  const handleSubmit = async () => {
+    if (!draft.trim() || !activeConversation || loading) return;
+
+    const userMessage = createMessage('customer', activeConversation.customerName, draft.trim());
+    const updatedConversation: ConversationRecord = {
+      ...activeConversation,
+      messages: [...activeConversation.messages, userMessage],
+      summary: draft.trim(),
+      lastUpdated: new Date().toISOString(),
+    };
+
+    setConversations((current) => current.map((conversation) => (conversation.id === activeConversation.id ? updatedConversation : conversation)));
     setDraft('');
     setLoading(true);
     setError(null);
@@ -36,17 +72,35 @@ export default function ChatPage() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage.text, customerName: 'Priya Nair' }),
+        body: JSON.stringify({ message: userMessage.text, customerName: activeConversation.customerName }),
       });
       const payload = await response.json();
       if (!response.ok) {
         throw new Error(payload?.error || 'Backend error');
       }
-      setMessages((current) => [...current, { type: 'agent', author: 'AI Agent', text: payload.answer }]);
+
+      const agentMessage = createMessage('agent', 'AI Agent', payload.answer || 'I’m unable to provide a grounded response right now.');
+      const nextConversation: ConversationRecord = {
+        ...updatedConversation,
+        messages: [...updatedConversation.messages, agentMessage],
+        summary: payload.answer || updatedConversation.summary,
+      };
+
+      setConversations((current) => current.map((conversation) => (conversation.id === activeConversation.id ? nextConversation : conversation)));
+      await fetch('/api/conversations', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nextConversation),
+      });
     } catch (caughtError) {
       const message = caughtError instanceof Error ? caughtError.message : 'Could not get a response';
       setError(message);
-      setMessages((current) => [...current, { type: 'agent', author: 'AI Agent', text: `I could not complete the request: ${message}` }]);
+      const failureMessage = createMessage('system', 'System', `I could not complete the request: ${message}`);
+      const failedConversation: ConversationRecord = {
+        ...updatedConversation,
+        messages: [...updatedConversation.messages, failureMessage],
+      };
+      setConversations((current) => current.map((conversation) => (conversation.id === activeConversation.id ? failedConversation : conversation)));
     } finally {
       setLoading(false);
     }
@@ -54,9 +108,38 @@ export default function ChatPage() {
 
   const handleThreadSelect = (customer: string) => {
     setSelectedThread(customer);
-    setMessages(transcript);
     setDraft('I’d like the latest carrier update and a summary for the support ticket.');
     setError(null);
+  };
+
+  const handleNewConversation = () => {
+    const customerName = 'New Customer';
+    const newConversation: ConversationRecord = {
+      id: createConversationId(),
+      customerId: 'C-9999',
+      customerName,
+      title: 'Fresh support conversation',
+      status: 'Open',
+      sentiment: 'Neutral',
+      lastUpdated: new Date().toISOString(),
+      summary: 'Fresh conversation opened.',
+      memoryUsed: false,
+      knowledgeUsed: false,
+      messages: [
+        createMessage('customer', customerName, 'I need a fresh follow-up on my case.'),
+        createMessage('agent', 'AI Agent', 'I’ve started a new conversation and am checking the issue details before responding.'),
+      ],
+    };
+
+    setConversations((current) => [newConversation, ...current]);
+    setSelectedThread(customerName);
+    setDraft('');
+    setError(null);
+    void fetch('/api/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newConversation),
+    });
   };
 
   return (
@@ -66,12 +149,7 @@ export default function ChatPage() {
           <p className="text-sm font-medium uppercase tracking-[0.2em] text-sky-300">AI Support Chat</p>
           <h1 className="mt-2 text-3xl font-semibold text-white">Customer conversations</h1>
         </div>
-        <button type="button" onClick={() => {
-          setSelectedThread('Priya Nair');
-          setMessages(transcript);
-          setDraft('I’d like the latest carrier update and a summary for the support ticket.');
-          setError(null);
-        }} className="rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white">New conversation</button>
+        <button type="button" onClick={handleNewConversation} className="rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white">New conversation</button>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
@@ -81,13 +159,13 @@ export default function ChatPage() {
             <RefreshCw className="h-4 w-4 text-slate-400" />
           </div>
           <div className="space-y-2">
-            {chatThreads.map((thread) => (
-              <button key={thread.customer} type="button" onClick={() => handleThreadSelect(thread.customer)} className={`w-full rounded-xl border p-3 text-left ${selectedThread === thread.customer ? 'border-blue-500/60 bg-blue-500/5' : 'border-slate-800 bg-slate-950/60'}`}>
+            {conversations.map((thread) => (
+              <button key={thread.id} type="button" onClick={() => handleThreadSelect(thread.customerName)} className={`w-full rounded-xl border p-3 text-left ${selectedThread === thread.customerName ? 'border-blue-500/60 bg-blue-500/5' : 'border-slate-800 bg-slate-950/60'}`}>
                 <div className="flex items-center justify-between">
-                  <div className="font-medium text-white">{thread.customer}</div>
+                  <div className="font-medium text-white">{thread.customerName}</div>
                   <span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] uppercase tracking-[0.15em] text-slate-300">{thread.status}</span>
                 </div>
-                <div className="mt-2 text-sm text-slate-400">{thread.preview}</div>
+                <div className="mt-2 text-sm text-slate-400">{thread.summary}</div>
               </button>
             ))}
           </div>
@@ -97,7 +175,7 @@ export default function ChatPage() {
           <div className="mb-4 flex items-center justify-between border-b border-slate-800 pb-4">
             <div>
               <div className="text-lg font-semibold text-white">{selectedThread} • Enterprise</div>
-              <div className="text-sm text-slate-400">Order delay • sentiment: frustrated</div>
+              <div className="text-sm text-slate-400">{activeConversation?.title ?? 'No active conversation'} • sentiment: {activeConversation?.sentiment ?? 'neutral'}</div>
             </div>
             <div className="flex gap-2 text-xs text-slate-300">
               <span className="rounded-full bg-violet-500/10 px-2 py-1 text-violet-200">Memory recalled</span>
@@ -106,8 +184,8 @@ export default function ChatPage() {
           </div>
 
           <div className="space-y-4 rounded-xl bg-slate-950/60 p-4">
-            {messages.map((entry) => (
-              <div key={`${entry.author}-${entry.text}`} className={`flex gap-3 ${entry.type === 'agent' ? 'justify-end' : ''}`}>
+            {messages.map((entry, index) => (
+              <div key={`${entry.id}-${index}`} className={`flex gap-3 ${entry.type === 'agent' ? 'justify-end' : ''}`}>
                 <div className={`flex h-8 w-8 items-center justify-center rounded-full ${entry.type === 'agent' ? 'bg-blue-500/20 text-blue-200' : 'bg-slate-800 text-slate-100'}`}>
                   {entry.type === 'agent' ? <Bot className="h-4 w-4" /> : <User className="h-4 w-4" />}
                 </div>
